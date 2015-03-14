@@ -8,6 +8,7 @@
  */
 package org.openhab.binding.powerdoglocalapi.internal;
 
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

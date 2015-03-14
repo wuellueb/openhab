@@ -8,12 +8,22 @@
  */
 package org.openhab.binding.powerdoglocalapi.internal;
 
+import java.io.FileInputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import redstone.xmlrpc.XmlRpcArray;
+import redstone.xmlrpc.XmlRpcClient;
+import redstone.xmlrpc.XmlRpcProxy;
+import redstone.xmlrpc.XmlRpcFault;
+import redstone.xmlrpc.XmlRpcStruct;
 
 import org.openhab.binding.powerdoglocalapi.PowerDogLocalApiBindingProvider;
 
@@ -162,7 +172,8 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 * @{inheritDoc}
 	 */
 	@Override
-	protected void execute() {
+	protected void execute() 
+	{
 		// the frequently executed code (polling) goes here ...
 		logger.debug("execute() method is called!");
 		
@@ -171,8 +182,10 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 			return;
 		}*/
 
-		for (PowerDogLocalApiBindingProvider provider : providers) {
-			for (String itemName : provider.getInBindingItemNames()) {
+		for (PowerDogLocalApiBindingProvider provider : providers) 
+		{
+			for (String itemName : provider.getInBindingItemNames()) 
+			{
 				int refreshInterval = provider.getRefreshInterval(itemName);
 
 				Long lastUpdateTimeStamp = lastUpdateMap.get(itemName);
@@ -183,7 +196,8 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 				long age = System.currentTimeMillis() - lastUpdateTimeStamp;
 				boolean needsUpdate = age >= refreshInterval;
 
-				if (needsUpdate) {
+				if (needsUpdate) 
+				{
 					logger.debug("Item '{}' is about to be refreshed now", itemName);
 
 					// Get the unit serverId from the binding, and relate that to the config
@@ -202,34 +216,79 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 							needsUpdate = true;
 					}
 
-					String response = null;
-					if(needsUpdate == true) {
-						// get doc in response // TODO
-					}
-					else {
+					XmlRpcStruct response = null;
+					if(needsUpdate == true) 
+					{
+						  try {
+								logger.debug("PowerDogLocalApi querying PowerDog");
+														    
+							    //XmlRpcClient rpcConnection = new XmlRpcClient(server.url(), false);
+						        //Vector<Object> params = new Vector<Object>();
+						        //params.addElement(server.password);
+
+						        //Object result = rpcConnection.invoke("getAllCurrentLinearValues", params);
+						        //response = result.toString();
+
+						        
+						        //PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( new URL("http://powerdog:20000"), "", new Class[] { PowerDog.class }, false );
+						        PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
+							    //URL url = server.url();
+							    //String urlString = url.toString();
+							    response = powerdog.getAllCurrentLinearValues(server.password);
+							    server.cache = response;
+							    
+						        logger.debug(response.toString());
+						     }
+							 catch (Exception e) 
+							 {
+								 logger.debug("PowerDogLocalApi querying PowerDog failed");
+								 logger.warn(e.getMessage());
+						     }	
+					  }
+					  else {
 						logger.debug("Using PowerDogLocalApi cache");
 						response = server.cache;
-					}
+					  }
+					
 
-					/*if(response != null) {
-						String value = getVariable(response, provider.getRomId(itemName), provider.getName(itemName));
+					if(response != null) 
+					{
+						String value = getVariable(response, provider.getValueId(itemName), provider.getName(itemName));
 						if (value != null) {
 							Class<? extends Item> itemType = provider.getItemType(itemName);
 							State state = createState(itemType, value);
 							eventPublisher.postUpdate(itemName, state);
 						}
-					}*/ // TODO
+					} // TODO
+					
 					tempCounter++;
 					
-					Class<? extends Item> itemType = provider.getItemType(itemName);
-					State state = createState(itemType, String.valueOf(tempCounter));
-					eventPublisher.postUpdate(itemName, state);
+					//Class<? extends Item> itemType = provider.getItemType(itemName);
+					//State state = createState(itemType, String.valueOf(tempCounter));
+					//eventPublisher.postUpdate(itemName, state);
 
 					lastUpdateMap.put(itemName, System.currentTimeMillis());
 				}
 			}
 		}
 	}
+
+
+	private String getVariable(XmlRpcStruct response, String valueId, String name) 
+	{
+		try
+		{
+			XmlRpcStruct reply = response.getStruct("Reply");
+			XmlRpcStruct item  = reply.getStruct(valueId);
+			String value = item.getString(name);
+			return value;
+		}
+		catch (Exception e) 
+		{
+			return null;
+		}
+	}
+
 
 	/**
 	 * @{inheritDoc}
@@ -396,7 +455,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		public String password;
 		public int refresh;
 		public Long lastUpdate;
-		public String cache;
+		public XmlRpcStruct cache;
 
 		PowerDogLocalApiServerConfig() {
 			lastUpdate = (long) 0;
@@ -416,4 +475,40 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 			}
 			return "PowerDogLocalApiServerCache [host="+host+", password=" + displayPassword + ", lastUpdate=" + lastUpdate + ", cache=" + cache + "]";
 		}
-	}}
+		
+		
+		public URL url() throws MalformedURLException {
+			return new URL("http", host, port, "");
+		}
+
+	}
+	
+	/**
+	 * PowerAPI Local Device API 0.b (15.02.2013)
+	 * 
+	 * VariantMap getPowerDogInfo(String password);
+	 * VariantMap getSensors(String password);
+	 * VariantMap getCounters(String password);
+	 * VariantMap getRegulations(String password);
+	 * VariantMap getLinearDevices(String password);
+	 * VariantMap getAllCurrentLinearValues(String password);
+	 * VariantMap getCurrentLinearValues(String password, String comma_seperated_list_of_keys);
+     * VariantMap setLinearSensorDevice(String password, String key, String current_value);
+     * VariantMap setLinearCounterDevice(String password, String key, String current_value, String countup_meter_reading);
+	 * 
+	 * @author Wuellueb
+	 *
+	 */
+	static interface PowerDog
+	{
+	    public XmlRpcStruct getPowerDogInfo( String password ) throws XmlRpcFault;
+	    public XmlRpcStruct getSensors( String password ) throws XmlRpcFault;
+	    public XmlRpcStruct getCounters( String password ) throws XmlRpcFault;
+	    public XmlRpcStruct getRegulations( String password ) throws XmlRpcFault;
+	    public XmlRpcStruct getLinearDevices( String password ) throws XmlRpcFault;
+	    public XmlRpcStruct getAllCurrentLinearValues( String password ) throws XmlRpcFault;
+	    public XmlRpcStruct getCurrentLinearValues( String password, String comma_seperated_list_of_keys ) throws XmlRpcFault;
+	    public XmlRpcStruct setLinearSensorDevice( String password, String key, String current_value ) throws XmlRpcFault;
+	    public XmlRpcStruct setLinearCounterDevice( String password, String key, String current_value, String countup_meter_reading ) throws XmlRpcFault;
+	}
+}
