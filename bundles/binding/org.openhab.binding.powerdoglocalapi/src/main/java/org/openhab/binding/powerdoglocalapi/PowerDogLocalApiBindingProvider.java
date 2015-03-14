@@ -15,7 +15,7 @@ import org.openhab.core.items.Item;
 
 /**
  * This interface is implemented by classes that can provide mapping information
- * between openHAB items and the Powerdog Local API.
+ * between openHAB items and the PowerDog Local API.
  * 
  * @author wuellueb
  * @since 1.7.0
@@ -29,37 +29,17 @@ public interface PowerDogLocalApiBindingProvider extends BindingProvider {
 	 * @return the type of the Item identified by {@code itemName}
 	 */
 	Class<? extends Item> getItemType(String itemName);
-	
-	/**
-	 * Return the Server IP or hostname for the PowerDog linked to the item
-	 * 
-	 * @param itemName the item for which to find the server
-	 */
-	//String getPowerDogHost(String itemName);
 
 	/**
-	 * Return the XML-RPC port for the PowerDog linked to the item
-	 * 
-	 * @param itemName the item for which to find the server port
-	 */
-	//int getPowerDogPort(String itemName);
-
-	/**
-	 * Return the PowerAPI password serverPassword for the PowerDog linked to the item
-	 * 
-	 * @param itemName the item for which to find the powerDogPassword
-	 */
-	//String getPowerDogPassword(String itemName);
-
-	/**
-	 * Return the IP serverId for PowerDog linked to the item
+	 * Return the serverId (used in the config file) for the PowerDog linked to the item
 	 * 
 	 * @param itemName the item for which to find the serverId
 	 */
 	String getServerId(String itemName);
 
 	/**
-	 * Return the PowerDog Value ID for the item (linked to the parameter)
+	 * Return the PowerDog Value ID for the item
+	 * e.g. 'impulsecounter_1234567890'
 	 * 
 	 * @param itemName the item for which to find a ValueID
 	 */
@@ -67,7 +47,7 @@ public interface PowerDogLocalApiBindingProvider extends BindingProvider {
 
 	/**
 	 * Return the parameter 'name' for this item. The variable 'name' is the PowerDog XML parameter
-	 * used for the item. This is linked to the ValueID.
+	 * used for the item, e.g. 'Current_Value'
 	 * 
 	 * @param itemName the item for which to find the name
 	 */

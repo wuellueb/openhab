@@ -38,7 +38,8 @@ import org.slf4j.LoggerFactory;
  * <ul>
  * 	<li><code>{ powerdoglocalapi="<serverId:arithmetic_1234567890:Current_Value:Number:300000" }</code></li>
  * 	<li><code>{ powerdoglocalapi="<powerdog:pv_global_1234567890:Current_Value:Number:300000" }</code></li>
- * 	<li><code>{ powerdoglocalapi="<powerdog:pv_global_1234567890:Unit_1000000:String:300000" }</code></li>
+ * 	<li><code>{ powerdoglocalapi="<powerdog:pv_global_1234567890:Current_Value:Number:300000" }</code></li>
+ * 	<li><code>{ powerdoglocalapi="<powerdog:impulsecounter_1234567890:Unit_1000000:String:300000" }</code></li>
 * 	<li><code>{ powerdoglocalapi=">powerdog:remotecounter_1234567890:Current_Value:Number" }</code></li>
  * </ul>
  * 
@@ -99,8 +100,8 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 	public void processBindingConfiguration(String context, Item item, String bindingConfig) throws BindingConfigParseException {
 		logger.debug("PowerDogLocalApi:processBindingConfiguration called");
 		super.processBindingConfiguration(context, item, bindingConfig);
-		//PowerDogLocalApiBindingConfig config = new PowerDogLocalApiBindingConfig(); // TODO remove
 		
+		// parse and accept binding configuration
 		if (bindingConfig != null) {
 			PowerDogLocalApiBindingConfig config = parseBindingConfig(item, bindingConfig);
 			logger.debug("bindingConfig adeed (config=" + config.toString() + ")");
@@ -109,8 +110,6 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 		else {
 			logger.warn("bindingConfig is NULL (item=" + item + ") -> process bindingConfig aborted!");
 		}
-		
-		//addBindingConfig(item, config);		 // TODO remove
 	}
 	
 	/**
@@ -127,25 +126,30 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 		
 		logger.debug("PowerDogLocalAPI:parseBindingConfig called");
 
+		// create binding configuration
 		PowerDogLocalApiBindingConfig config = new PowerDogLocalApiBindingConfig();
 		config.itemType = item.getClass();
 		
+		// set regular expression
 		Matcher matcher = BASE_CONFIG_PATTERN.matcher(bindingConfig);
-		
 		if (!matcher.matches()) {
 			throw new BindingConfigParseException("PowerDogLocalAPI:bindingConfig '" + bindingConfig + "' doesn't contain a valid binding configuration");
 		}
 		matcher.reset();
 				
+		// check for high level regular expression, if in- or out-binding is asked
 		while (matcher.find()) {
 			String direction = matcher.group(1);
 			String bindingConfigPart = matcher.group(2);
 			
 			if (direction.equals("<")) {
+				// in-binding config line found
 				config = parseInBindingConfig(item, bindingConfigPart, config);
 			}
+			//
 			else if (direction.equals(">")) {
-				// for future use
+				// out-binding config line found
+				// for future use // TODO
 			}
 			else {
 				throw new BindingConfigParseException("Unknown command given! Configuration must start with '<' or '>' ");
@@ -178,15 +182,16 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 	protected PowerDogLocalApiBindingConfig parseInBindingConfig(Item item, String bindingConfig, PowerDogLocalApiBindingConfig config) throws BindingConfigParseException {
 
 		logger.debug("PowerDogLocalAPI:parseInBindingConfig called");
+		PowerDogLocalApiBindingConfigElement configElement;
+
+		// Check if regex for in-binding matches
 		Matcher matcher = IN_BINDING_PATTERN.matcher(bindingConfig);
-		
 		if (!matcher.matches()) {
 			throw new BindingConfigParseException("bindingConfig '" + bindingConfig + "' doesn't represent a valid in-binding-configuration. A valid configuration is matched by the RegExp '"+IN_BINDING_PATTERN+"'");
 		}
 		matcher.reset();
 				
-		PowerDogLocalApiBindingConfigElement configElement;
-
+		// parse regex and extract configuration data
 		while (matcher.find()) {
 			configElement = new PowerDogLocalApiBindingConfigElement();
 			configElement.serverId = matcher.group(1);
@@ -283,11 +288,11 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 	 * config strings and use it to answer the requests to the binding provider.
 	 */
 	static class PowerDogLocalApiBindingConfigElement implements BindingConfig {
-		public String serverId;
-		public String valueId;
-		public String name;
-		public String dataType;
-		public int refreshInterval;
+		public String serverId; 	// as used in the openhab configuration file
+		public String valueId;		// PowerDog value ID, e.g. 'impulsecounter_1234567890'
+		public String name;			// Parameter name, e.g. 'Current_Value'
+		public String dataType;		// Can be either 'Number' or 'String'
+		public int refreshInterval; // Refresh rate for the specific item, will not be queried faster than set for the corresponding PowerDog
 		
 		@Override
 		public String toString() {

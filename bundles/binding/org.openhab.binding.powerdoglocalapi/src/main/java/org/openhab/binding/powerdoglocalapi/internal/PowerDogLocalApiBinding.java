@@ -8,19 +8,14 @@
  */
 package org.openhab.binding.powerdoglocalapi.internal;
 
-import java.io.FileInputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import redstone.xmlrpc.XmlRpcArray;
-import redstone.xmlrpc.XmlRpcClient;
 import redstone.xmlrpc.XmlRpcProxy;
 import redstone.xmlrpc.XmlRpcFault;
 import redstone.xmlrpc.XmlRpcStruct;
@@ -47,8 +42,7 @@ import org.slf4j.LoggerFactory;
 	
 
 /**
- * Implement this class if you are going create an actively polling service
- * like querying a Website/Device.
+ * Queries eco-data PowerDog
  * 
  * @author wuellueb
  * @since 1.7.0
@@ -64,19 +58,12 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 * was called.
 	 */
 	private BundleContext bundleContext;
-
-	/**
-	 * the maximum duration of data in the cache (in ms, defaults to 1 minute)
-	 */
-	private int cacheDuration = 600000; // TODO necessary???
 	
 	/** 
 	 * the refresh interval which is used to poll values from the PowerDogLocalApi
-	 * server (optional, defaults to 300000ms)
+	 * for all servers (optional, defaults to 300000ms)
 	 */
 	private long refreshInterval = 300000;
-	
-	private int tempCounter = 0; // TODO remove
 
 	/**
 	 *  RegEx to validate a config <code>'^(.*?)\\.(host|port)$'</code> 
@@ -151,7 +138,6 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		// should be reset when activating this binding again
 	}
 
-	
 	/**
 	 * @{inheritDoc}
 	 */
@@ -174,27 +160,23 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	@Override
 	protected void execute() 
 	{
-		// the frequently executed code (polling) goes here ...
 		logger.debug("execute() method is called!");
-		
-		/*if (!bindingsExist()) {
-			logger.debug("There is no existing PowerDogLocalApi binding configuration => refresh cycle aborted!");
-			return;
-		}*/
 
+		// cycle on all available powerdogs
 		for (PowerDogLocalApiBindingProvider provider : providers) 
 		{
 			for (String itemName : provider.getInBindingItemNames()) 
 			{
+				// get item specific refresh interval
 				int refreshInterval = provider.getRefreshInterval(itemName);
 
+				// check if item needs update
 				Long lastUpdateTimeStamp = lastUpdateMap.get(itemName);
 				if (lastUpdateTimeStamp == null) {
 					lastUpdateTimeStamp = 0L;
 				}
-
 				long age = System.currentTimeMillis() - lastUpdateTimeStamp;
-				boolean needsUpdate = age >= refreshInterval;
+				boolean needsUpdate = (age >= refreshInterval);
 
 				if (needsUpdate) 
 				{
@@ -203,37 +185,27 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 					// Get the unit serverId from the binding, and relate that to the config
 					String unit = provider.getServerId(itemName);
 					PowerDogLocalApiServerConfig server = serverList.get(unit);
+					
+					// get the server specific update time and check if it needs an update
 					needsUpdate = false;
 					if (server == null) {
 						needsUpdate = false;
 						logger.error("Unknown PowerDog server referenced: "+unit);
-						
 						continue;
 					}
 					else {
 						age = System.currentTimeMillis() - server.lastUpdate;
-						if (age >= cacheDuration)
-							needsUpdate = true;
+						needsUpdate = (age >= server.refresh);
 					}
 
+					// Get all current linear values from the powerdog in case of an update
 					XmlRpcStruct response = null;
 					if(needsUpdate == true) 
 					{
 						  try {
 								logger.debug("PowerDogLocalApi querying PowerDog");
-														    
-							    //XmlRpcClient rpcConnection = new XmlRpcClient(server.url(), false);
-						        //Vector<Object> params = new Vector<Object>();
-						        //params.addElement(server.password);
-
-						        //Object result = rpcConnection.invoke("getAllCurrentLinearValues", params);
-						        //response = result.toString();
-
 						        
-						        //PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( new URL("http://powerdog:20000"), "", new Class[] { PowerDog.class }, false );
-						        PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
-							    //URL url = server.url();
-							    //String urlString = url.toString();
+								PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
 							    response = powerdog.getAllCurrentLinearValues(server.password);
 							    server.cache = response;
 							    
@@ -241,7 +213,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 						     }
 							 catch (Exception e) 
 							 {
-								 logger.debug("PowerDogLocalApi querying PowerDog failed");
+								 logger.warn("PowerDogLocalApi querying PowerDog failed");
 								 logger.warn(e.getMessage());
 						     }	
 					  }
@@ -251,29 +223,31 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 					  }
 					
 
+					// update item state
 					if(response != null) 
 					{
 						String value = getVariable(response, provider.getValueId(itemName), provider.getName(itemName));
 						if (value != null) {
 							Class<? extends Item> itemType = provider.getItemType(itemName);
 							State state = createState(itemType, value);
-							eventPublisher.postUpdate(itemName, state);
+							eventPublisher.postUpdate(itemName, state); // TODO state type checken
+							lastUpdateMap.put(itemName, System.currentTimeMillis());
 						}
-					} // TODO
-					
-					tempCounter++;
-					
-					//Class<? extends Item> itemType = provider.getItemType(itemName);
-					//State state = createState(itemType, String.valueOf(tempCounter));
-					//eventPublisher.postUpdate(itemName, state);
-
-					lastUpdateMap.put(itemName, System.currentTimeMillis());
+					}
 				}
 			}
 		}
+
+		logger.debug("execute() method is finished!");
 	}
 
-
+	/**
+	 * Parse PowerDog xmlrpc response to getAllCurrentLinearValues
+	 * @param response PowerDog Response
+	 * @param valueId Value ID of PowerDog Item
+	 * @param name Parameter name to be updated
+	 * @return
+	 */
 	private String getVariable(XmlRpcStruct response, String valueId, String name) 
 	{
 		try
@@ -343,18 +317,22 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 			return StringType.valueOf(transformedResponse);
 		}
 	}
-	private void parseConfiguration(Map<String, Object> config){
+	
+	/**
+	 * Parse PowerDog Openhab configuration
+	 * @param config PowerDog configuration string
+	 */
+	private void parseConfiguration(Map<String, Object> config) {
 		logger.debug("PowerDogLocalApi:parseConfiguration() method is called!");	
 		if (config != null) {
-			logger.debug("next step");	
 			Set<String> keyset = config.keySet();
-			logger.debug(keyset.toString());	
 
-			// read further config parameters here ...
+			// create server list of not yet available
 			if ( serverList == null ) {
 				serverList = new HashMap<String, PowerDogLocalApiServerConfig>();
 			}
 			
+			// check keys of config set
 			for (Iterator<String> keys = keyset.iterator(); keys.hasNext(); ) {
 				String key = keys.next();
 				logger.debug("key: " + key.toString());	
@@ -377,28 +355,25 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 					continue;
 				}
 
+				// check if key matches powerdog-regex
 				Matcher matcher = EXTRACT_CONFIG_PATTERN.matcher(key);
-
 				if (!matcher.matches()) {
 					continue;
 				}
-
 				matcher.reset();
 				matcher.find();
 
+				// get serverId as first item
 				String serverId = matcher.group(1);
 
-				logger.debug("serverID: " + serverId);	
-
+				// create config item for this specific powerdog unit
 				PowerDogLocalApiServerConfig deviceConfig = serverList.get(serverId);
-
 				if (deviceConfig == null) {
 					deviceConfig = new PowerDogLocalApiServerConfig();
 					serverList.put(serverId, deviceConfig);
 				}
 
-				logger.debug("Current Server config: " + deviceConfig.toString());	
-
+				// extract values for host, port, password or refresh
 				String configKey = matcher.group(2);
 				String value = (String) config.get(key);
 
@@ -417,32 +392,17 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 				}
 				else if ("refresh".equals(configKey)) {
 					if (StringUtils.isNotBlank(value)) {
-						deviceConfig.refresh = (int) Long.parseLong(value);
+						// refresh cannot be lower than refresh interval
+						deviceConfig.refresh = (int) Math.max(Long.parseLong(value), refreshInterval);
 						logger.debug("value: " + value);	
 					}
 				}
-				/*else {
-					throw new ConfigurationException(configKey, "The given PowerDogLocalApi configKey '" + configKey + "' is unknown");
-				}*/
+				else {
+					// cannot throw new ConfigurationException(configKey, "The given PowerDogLocalApi configKey '" + configKey + "' is unknown");
+					logger.warn("The given PowerDogLocalApi configKey '" + configKey + "' is unknown");
+				}
 				logger.debug("New Server config: " + deviceConfig.toString());	
 			}
-
-			/*String timeoutString = (String) config.get("timeout");
-			if (StringUtils.isNotBlank(timeoutString)) {
-				timeout = Integer.parseInt(timeoutString);
-			}
-
-			String granularityString = (String) config.get("granularity");
-			if (StringUtils.isNotBlank(granularityString)) {
-				granularity = Integer.parseInt(granularityString);
-			}
-
-			String cacheString = (String) config.get("cache");
-			if (StringUtils.isNotBlank(cacheString)) {
-				cacheDuration = Integer.parseInt(cacheString);
-			}*/ // TODO
-			
-			refreshInterval = 1000; // TODO
 			
 			setProperlyConfigured(true);
 			logger.debug("PowerDogLocalApi:parseConfiguration() method is terminated");	
@@ -450,21 +410,21 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	}
 	
 	static class PowerDogLocalApiServerConfig {
-		public String host;
-		public int port;
-		public String password;
-		public int refresh;
-		public Long lastUpdate;
+		public String host;		// IP adress or DNS entry
+		public int port;		// port number
+		public String password;	// password
+		public int refresh;		// refresh rate in ms
+		public Long lastUpdate;	// saves last update time when xmlrpc was read
 		public XmlRpcStruct cache;
 
 		PowerDogLocalApiServerConfig() {
 			lastUpdate = (long) 0;
 			
 			// set defaults
-			refresh = 300000;
-			password = "";
-			port = 20000;
-			host = "powerdog";
+			refresh = 300000; 	// 5 min is default
+			password = "";		// empty password will normally not be accepted by PowerDog, needs to be configured
+			port = 20000; 		// port 20000 is default for PowerDog
+			host = "powerdog";	// local DNS in router might resolve this one
 		}
 		
 		@Override
