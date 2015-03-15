@@ -36,11 +36,11 @@ import org.slf4j.LoggerFactory;
  * 
  * <p>Here are some examples for valid binding configuration strings:
  * <ul>
- * 	<li><code>{ powerdoglocalapi="<serverId:arithmetic_1234567890:Current_Value:Number:300000" }</code></li>
- * 	<li><code>{ powerdoglocalapi="<powerdog:pv_global_1234567890:Current_Value:Number:300000" }</code></li>
- * 	<li><code>{ powerdoglocalapi="<powerdog:pv_global_1234567890:Current_Value:Number:300000" }</code></li>
- * 	<li><code>{ powerdoglocalapi="<powerdog:impulsecounter_1234567890:Unit_1000000:String:300000" }</code></li>
-* 	<li><code>{ powerdoglocalapi=">powerdog:remotecounter_1234567890:Current_Value:Number" }</code></li>
+ * 	<li><code>{ powerdoglocalapi="<serverId:arithmetic_1234567890:Current_Value:300000" }</code></li>
+ * 	<li><code>{ powerdoglocalapi="<powerdog:pv_global_1234567890:Current_Value:300000" }</code></li>
+ * 	<li><code>{ powerdoglocalapi="<powerdog:pv_global_1234567890:Current_Value:300000" }</code></li>
+ * 	<li><code>{ powerdoglocalapi="<powerdog:impulsecounter_1234567890:Unit_1000000:300000" }</code></li>
+* 	<li><code>{ powerdoglocalapi=">powerdog:remotecounter_1234567890:Current_Value" }</code></li>
  * </ul>
  * 
  * The 'serverId' referenced in the binding string is configured in the openhab.cfg file -:
@@ -58,15 +58,15 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 
 	/** {@link Pattern} which matches a binding configuration part */
 	private static final Pattern BASE_CONFIG_PATTERN =
-		Pattern.compile("(<|>)([0-9._a-zA-Z]+:[0-9._a-zA-Z]+:[0-9._a-zA-Z]+:[a-zA-Z]+:[0-9]+)");
+		Pattern.compile("(<|>)([0-9._a-zA-Z]+:[0-9._a-zA-Z]+:[0-9._a-zA-Z]+:[0-9]+)");
 
 	/** {@link Pattern} which matches an In-Binding */
 	private static final Pattern IN_BINDING_PATTERN =
-		Pattern.compile("([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([a-zA-Z]+):([0-9]+)");
+		Pattern.compile("([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([0-9]+)");
 	
 	/** {@link Pattern} which matches an Out-Binding */
 	private static final Pattern OUT_BINDING_PATTERN =
-		Pattern.compile("([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([a-zA-Z]+)"); // TODO
+		Pattern.compile("([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([0-9._a-zA-Z]+)"); // TODO
 	
 	/** 
 	 * Artificial command for the PowerDog configuration
@@ -167,8 +167,7 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 	 * <li>1 - Server ID</li>
 	 * <li>2 - PowerDog Value ID</li>
 	 * <li>3 - Variable name</li>
-	 * <li>4 - Data type (String or Number)</li>
-	 * <li>5 - Refresh Interval</li>
+	 * <li>4 - Refresh Interval</li>
 	 * </ul>
 	 * 
 	 * @param item 
@@ -197,8 +196,7 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 			configElement.serverId = matcher.group(1);
 			configElement.valueId = matcher.group(2);
 			configElement.name = matcher.group(3);
-			configElement.dataType = matcher.group(4);
-			configElement.refreshInterval = Integer.valueOf(matcher.group(5)).intValue();
+			configElement.refreshInterval = Integer.valueOf(matcher.group(4)).intValue();
 
 			logger.debug("PowerDogLocalAPI: "+configElement);
 			config.put(IN_BINDING_KEY, configElement);
@@ -238,14 +236,6 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 	public String getName(String itemName) {
 		PowerDogLocalApiBindingConfig config = (PowerDogLocalApiBindingConfig) bindingConfigs.get(itemName);
 		return config != null && config.get(IN_BINDING_KEY) != null ? config.get(IN_BINDING_KEY).name : null;
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
-	public String getDataType(String itemName) {
-		PowerDogLocalApiBindingConfig config = (PowerDogLocalApiBindingConfig) bindingConfigs.get(itemName);
-		return config != null && config.get(IN_BINDING_KEY) != null ? config.get(IN_BINDING_KEY).dataType : null;
 	}
 
 	/**
@@ -291,13 +281,12 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 		public String serverId; 	// as used in the openhab configuration file
 		public String valueId;		// PowerDog value ID, e.g. 'impulsecounter_1234567890'
 		public String name;			// Parameter name, e.g. 'Current_Value'
-		public String dataType;		// Can be either 'Number' or 'String'
 		public int refreshInterval; // Refresh rate for the specific item, will not be queried faster than set for the corresponding PowerDog
 		
 		@Override
 		public String toString() {
 			return "PowerDogLocalAPIBindingConfigElement [serverId=" + serverId
-					+ ", valueId=" + valueId + ", name=" + name + ", dataType=" + dataType + ", refreshInterval=" + refreshInterval + "]";
+					+ ", valueId=" + valueId + ", name=" + name + ", refreshInterval=" + refreshInterval + "]";
 		}
 	}
 	

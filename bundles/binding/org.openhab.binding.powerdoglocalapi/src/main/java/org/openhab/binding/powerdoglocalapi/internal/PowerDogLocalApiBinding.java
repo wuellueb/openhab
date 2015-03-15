@@ -60,7 +60,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	private BundleContext bundleContext;
 	
 	/** 
-	 * the refresh interval which is used to poll values from the PowerDogLocalApi
+	 * the refresh interval which is used as minimum sample time to poll values from the PowerDogLocalApi
 	 * for all servers (optional, defaults to 300000ms)
 	 */
 	private long refreshInterval = 300000;
@@ -208,8 +208,9 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 								PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
 							    response = powerdog.getAllCurrentLinearValues(server.password);
 							    server.cache = response;
+							    server.lastUpdate = System.currentTimeMillis();
 							    
-						        logger.debug(response.toString());
+						        logger.debug("PowerDog.getAllCurrentLinearValues() result: " + response.toString());
 						     }
 							 catch (Exception e) 
 							 {
@@ -230,7 +231,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 						if (value != null) {
 							Class<? extends Item> itemType = provider.getItemType(itemName);
 							State state = createState(itemType, value);
-							eventPublisher.postUpdate(itemName, state); // TODO state type checken
+							eventPublisher.postUpdate(itemName, state);
 							lastUpdateMap.put(itemName, System.currentTimeMillis());
 						}
 					}
@@ -291,6 +292,12 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 * accepted DataTypes. The call is delegated to the {@link TypeParser}. If
 	 * <code>item</code> is <code>null</code> the {@link StringType} is used.
 	 * 
+	 * PowerDog supports in the PowerAPI the following types, which can
+	 * be  mapped to the following items:
+	 * V, A, °C, W, l, m/s, km/h --> Number, String
+	 * % --> Number, Rollershutter, Switch* (in case of Switch, 100% will be mapped to ON)
+	 * String (from PowerDog API output) --> String
+	 * 
 	 * @param itemType
 	 * @param transformedResponse
 	 * 
@@ -299,13 +306,15 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 */
 	private State createState(Class<? extends Item> itemType,
 			String transformedResponse) {
-		try {
+		try { // TODO Support of Switch and ContactItem would be useful in case of In+Out-Binding
 			if (itemType.isAssignableFrom(NumberItem.class)) {
 				return DecimalType.valueOf(transformedResponse);
-			} else if (itemType.isAssignableFrom(ContactItem.class)) {
-				return OpenClosedType.valueOf(transformedResponse);
 			} else if (itemType.isAssignableFrom(SwitchItem.class)) {
-				return OnOffType.valueOf(transformedResponse);
+				int value = Integer.parseInt(transformedResponse);
+				if(value > 0)
+					return OnOffType.ON;
+				else
+					return OnOffType.OFF;
 			} else if (itemType.isAssignableFrom(RollershutterItem.class)) {
 				return PercentType.valueOf(transformedResponse);
 			} else {
@@ -335,7 +344,6 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 			// check keys of config set
 			for (Iterator<String> keys = keyset.iterator(); keys.hasNext(); ) {
 				String key = keys.next();
-				logger.debug("key: " + key.toString());	
 
 				// the config-key enumeration contains additional keys that we
 				// don't want to process here ...

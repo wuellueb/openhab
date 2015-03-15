@@ -54,13 +54,6 @@ public interface PowerDogLocalApiBindingProvider extends BindingProvider {
 	String getName(String itemName);
 	
 	/**
-	 * Return the parameter 'dataType' for this item. Can be either 'Number' or 'String'.
-	 * 
-	 * @param itemName the item for which to find the dataType
-	 */
-	String getDataType(String itemName);
-	
-	/**
 	 * Returns the refresh interval to use according to <code>itemName</code>.
 	 * Is used by PowerDog-In-Binding.
 	 *  
