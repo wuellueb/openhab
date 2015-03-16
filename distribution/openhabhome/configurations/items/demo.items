@@ -120,6 +120,3 @@ Number Temperature_Setpoint		"Temperature [%.1f °C]" <temperature>
 
 String UnknownDevices    "Unknown Devices in Range: [%s]" { bluetooth="?" }
 Number NoOfPairedDevices "Paired Devices in Range: [%d]"  { bluetooth="!" }
-
-Number PowerdogNumber 		"Number [%.1f %%]"	<network>	(FF_Bed) { powerdoglocalapi="<pd:impulsecounter_1373062684:Current_Value:Number:300000" }
-Number Weather_Humidity2 		"Outside Humidity [%.1f %%]"	<temperature> (Weather) { http="<[http://weather.yahooapis.com/forecastrss?w=638242&u=c:60000:XSLT(yahoo_weather_humidity.xsl)]" }
