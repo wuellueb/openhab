@@ -12,6 +12,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -26,10 +27,11 @@ import org.apache.commons.lang.StringUtils;
 import org.openhab.core.binding.AbstractActiveBinding;
 import org.openhab.core.items.Item;
 import org.openhab.core.library.items.ContactItem;
+import org.openhab.core.library.items.DimmerItem;
 import org.openhab.core.library.items.NumberItem;
-import org.openhab.core.library.items.RollershutterItem;
 import org.openhab.core.library.items.SwitchItem;
 import org.openhab.core.library.types.DecimalType;
+import org.openhab.core.library.types.IncreaseDecreaseType;
 import org.openhab.core.library.types.PercentType;
 import org.openhab.core.library.types.StringType;
 import org.openhab.core.library.types.OnOffType;
@@ -70,8 +72,14 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 */
 	private static final Pattern EXTRACT_CONFIG_PATTERN = Pattern.compile("^(.*?)\\.(.*?)$");
 
+	/**
+	 * Mapping of items to lastUpdate
+	 */
 	private Map<String, Long> lastUpdateMap = new HashMap<String, Long>();
 
+	/**
+	 * Mapping from serverId to PowerDog configuration structure
+	 */
 	private Map<String, PowerDogLocalApiServerConfig> serverList = new HashMap<String, PowerDogLocalApiServerConfig>();
 
 	public PowerDogLocalApiBinding() {
@@ -93,7 +101,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		// configuration-policy set to require. If set to 'optional' then the configuration may be null
 		this.bundleContext = bundleContext;
 			
-		// to override the default refresh interval one has to add a 
+		// to override the default refresh interval for all powerdogs one has to add a 
 		// parameter to openhab.cfg like <bindingName>:refresh=<intervalInMs>
 		String refreshIntervalString = (String) configuration.get("refresh");
 		if (StringUtils.isNotBlank(refreshIntervalString)) {
@@ -134,8 +142,6 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 */
 	public void deactivate(final int reason) {
 		this.bundleContext = null;
-		// deallocate resources here that are no longer needed and 
-		// should be reset when activating this binding again
 	}
 
 	/**
@@ -162,7 +168,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	{
 		logger.debug("execute() method is called!");
 
-		// cycle on all available powerdogs
+		// cycle over all available powerdogs
 		for (PowerDogLocalApiBindingProvider provider : providers) 
 		{
 			for (String itemName : provider.getInBindingItemNames()) 
@@ -176,9 +182,9 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 					lastUpdateTimeStamp = 0L;
 				}
 				long age = System.currentTimeMillis() - lastUpdateTimeStamp;
-				boolean needsUpdate = (age >= refreshInterval);
+				boolean itemNeedsUpdate = (age >= refreshInterval);
 
-				if (needsUpdate) 
+				if (itemNeedsUpdate) 
 				{
 					logger.debug("Item '{}' is about to be refreshed now", itemName);
 
@@ -187,43 +193,19 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 					PowerDogLocalApiServerConfig server = serverList.get(unit);
 					
 					// get the server specific update time and check if it needs an update
-					needsUpdate = false;
+					boolean serverNeedsUpdate = false;
 					if (server == null) {
-						needsUpdate = false;
+						serverNeedsUpdate = false;
 						logger.error("Unknown PowerDog server referenced: "+unit);
 						continue;
 					}
 					else {
 						age = System.currentTimeMillis() - server.lastUpdate;
-						needsUpdate = (age >= server.refresh);
+						serverNeedsUpdate = (age >= server.refresh);
 					}
 
-					// Get all current linear values from the powerdog in case of an update
-					XmlRpcStruct response = null;
-					if(needsUpdate == true) 
-					{
-						  try {
-								logger.debug("PowerDogLocalApi querying PowerDog");
-						        
-								PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
-							    response = powerdog.getAllCurrentLinearValues(server.password);
-							    server.cache = response;
-							    server.lastUpdate = System.currentTimeMillis();
-							    
-						        logger.debug("PowerDog.getAllCurrentLinearValues() result: " + response.toString());
-						     }
-							 catch (Exception e) 
-							 {
-								 logger.warn("PowerDogLocalApi querying PowerDog failed");
-								 logger.warn(e.getMessage());
-						     }	
-					  }
-					  else {
-						logger.debug("Using PowerDogLocalApi cache");
-						response = server.cache;
-					  }
-					
-
+					XmlRpcStruct response = loadPowerDogResponse(serverNeedsUpdate, server);
+		
 					// update item state
 					if(response != null) 
 					{
@@ -240,6 +222,37 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		}
 
 		logger.debug("execute() method is finished!");
+	}
+
+
+	private XmlRpcStruct loadPowerDogResponse(boolean needsUpdate, PowerDogLocalApiServerConfig server) 
+	{
+		// Get all current linear values from the powerdog in case of an update
+		XmlRpcStruct response = null;
+		if(needsUpdate == true) 
+		{
+			  try {
+					logger.debug("PowerDogLocalApi querying PowerDog");
+			        
+					// perform XML RPC call and store response
+					PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
+				    response = powerdog.getAllCurrentLinearValues(server.password);
+				    server.cache = response;
+				    server.lastUpdate = System.currentTimeMillis();
+				    
+			        logger.debug("PowerDog.getAllCurrentLinearValues() result: " + response.toString());
+			     }
+				 catch (Exception e) 
+				 {
+					 logger.warn("PowerDogLocalApi querying PowerDog failed");
+					 logger.warn(e.getMessage());
+			     }	
+		  }
+		  else {
+			logger.debug("Using PowerDogLocalApi cache");
+			response = server.cache;
+		  }
+		return response;
 	}
 
 	/**
@@ -270,10 +283,29 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 */
 	@Override
 	protected void internalReceiveCommand(String itemName, Command command) {
-		// the code being executed when a command was sent on the openHAB
-		// event bus goes here. This method is only called if one of the 
-		// BindingProviders provide a binding for the given 'itemName'.
 		logger.debug("internalReceiveCommand({},{}) is called!", itemName, command);
+		
+		State newState = null;
+
+		if(command instanceof OnOffType) {
+			newState = DecimalType.ZERO;
+			if (command == OnOffType.ON) newState = new DecimalType(1); }
+		else if(command instanceof OpenClosedType) { 
+			newState = DecimalType.ZERO;
+			if (command == OpenClosedType.OPEN) newState = new DecimalType(1); }
+		else if(command instanceof PercentType) { newState = new DecimalType(((PercentType) command).intValue()); }
+		else if(command instanceof DecimalType) { newState = (DecimalType) command; }
+
+		
+		if(newState != null)
+		{
+			eventPublisher.postUpdate(itemName, newState);
+			lastUpdateMap.put(itemName, System.currentTimeMillis());
+		}
+		else
+		{
+			logger.warn("internalReceiveCommand({},{}) not handled!", itemName, command);
+		}
 	}
 	
 	/**
@@ -281,21 +313,62 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 */
 	@Override
 	protected void internalReceiveUpdate(String itemName, State newState) {
-		// the code being executed when a state was sent on the openHAB
-		// event bus goes here. This method is only called if one of the 
-		// BindingProviders provide a binding for the given 'itemName'.
 		logger.debug("internalReceiveUpdate({},{}) is called!", itemName, newState);
-	}
+
+		// cycle on all available powerdogs
+		for (PowerDogLocalApiBindingProvider provider : providers) 
+		{
+			if(!provider.providesBindingFor(itemName))
+				continue;
+			
+			if(provider.getOutBindingItemNames().contains(itemName))
+				
+			{
+				// check if item may send update
+				// time indicated in config is the minimum time between two updates
+				Long lastUpdateTimeStamp = lastUpdateMap.get(itemName);
+				if (lastUpdateTimeStamp == null) {
+					lastUpdateTimeStamp = 0L;
+				}
+				long age = System.currentTimeMillis() - lastUpdateTimeStamp;
+				boolean itemNeedsUpdate = (age >= provider.getRefreshInterval(itemName));
+		
+				if(itemNeedsUpdate)
+				{
+					// Get the unit serverId from the binding, and relate that to the config
+					String unit = provider.getServerId(itemName);
+					PowerDogLocalApiServerConfig server = serverList.get(unit);
+					
+					  try {
+							logger.debug("PowerDogLocalApi sending to PowerDog");
+					        
+							PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
+						    XmlRpcStruct response = powerdog.setLinearSensorDevice(server.password, provider.getValueId(itemName), newState.toString());
+						    
+							lastUpdateMap.put(itemName, System.currentTimeMillis());
+						    
+					        logger.debug("PowerDog.setLinearSensorDevice() result: " + response.toString());
+					     }
+						 catch (Exception e) 
+						 {
+							 logger.warn("PowerDogLocalApi sending to PowerDog failed");
+							 logger.warn(e.getMessage());
+					     }	
+				}
+			}
+		}
+		
+}
 
 	/**
 	 * Returns a {@link State} which is inherited from the {@link Item}s
 	 * accepted DataTypes. The call is delegated to the {@link TypeParser}. If
 	 * <code>item</code> is <code>null</code> the {@link StringType} is used.
 	 * 
-	 * PowerDog supports in the PowerAPI the following types, which can
-	 * be  mapped to the following items:
+	 * PowerDog supports in the PowerAPI the following types for In-Bindings, 
+	 * which should be  mapped to the following items:
 	 * V, A, °C, W, l, m/s, km/h --> Number, String
-	 * % --> Number, Rollershutter, Switch* (in case of Switch, 100% will be mapped to ON)
+	 * % --> Number, Switch, Dimmer, Contact* (in case of Switch, 100% will be mapped to ON; in case of Contact, 100% is mapped to OPEN)
 	 * String (from PowerDog API output) --> String
 	 * 
 	 * @param itemType
@@ -306,18 +379,24 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	 */
 	private State createState(Class<? extends Item> itemType,
 			String transformedResponse) {
-		try { // TODO Support of Switch and ContactItem would be useful in case of In+Out-Binding
+		try {
 			if (itemType.isAssignableFrom(NumberItem.class)) {
-				return DecimalType.valueOf(transformedResponse);
-			} else if (itemType.isAssignableFrom(SwitchItem.class)) {
+				return DecimalType.valueOf(transformedResponse);}
+			else if (itemType.isAssignableFrom(DimmerItem.class)) {
+				return DecimalType.valueOf(transformedResponse);}
+			else if (itemType.isAssignableFrom(SwitchItem.class)) {
 				int value = Integer.parseInt(transformedResponse);
 				if(value > 0)
 					return OnOffType.ON;
 				else
-					return OnOffType.OFF;
-			} else if (itemType.isAssignableFrom(RollershutterItem.class)) {
-				return PercentType.valueOf(transformedResponse);
-			} else {
+					return OnOffType.OFF;}
+			else if (itemType.isAssignableFrom(ContactItem.class)) {
+				int value = Integer.parseInt(transformedResponse);
+				if(value > 0)
+					return OpenClosedType.OPEN;
+				else
+					return OpenClosedType.CLOSED;}
+			else {
 				return StringType.valueOf(transformedResponse);
 			}
 		} catch (Exception e) {

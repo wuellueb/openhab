@@ -69,4 +69,10 @@ public interface PowerDogLocalApiBindingProvider extends BindingProvider {
 	 * @return item which are mapped to a PowerDog-In-Binding
 	 */
 	List<String> getInBindingItemNames();
+
+	/**
+	 * Returns all items which are mapped to a PowerDog-Out-Binding
+	 * @return item which are mapped to a PowerDog-Out-Binding
+	 */
+	List<String> getOutBindingItemNames();
 }
