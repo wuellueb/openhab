@@ -67,10 +67,6 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 	private static final Pattern INNER_BINDING_PATTERN =
 		Pattern.compile("([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([0-9]+)(:?[0-9._a-zA-Z]*)");
 	
-	/** {@link Pattern} which matches an Out-Binding, used only for PowerAPI sensors on PowerDog */
-	//private static final Pattern OUT_BINDING_PATTERN =
-	//	Pattern.compile("([0-9._a-zA-Z]+):([0-9._a-zA-Z]+):([0-9]+)");
-	
 	/** 
 	 * Artificial command for the PowerDog configuration
 	 */
@@ -202,7 +198,7 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 			configElement.serverId = matcher.group(1);
 			configElement.valueId = matcher.group(2);
 			configElement.refreshInterval = Integer.valueOf(matcher.group(3));
-			if(matcher.group(4).isEmpty())
+			if(matcher.group(4).isEmpty()) // group 4 is optional
 				configElement.name = "Current_Value";
 			else
 				configElement.name = matcher.group(4).substring(1);
@@ -213,50 +209,6 @@ public class PowerDogLocalApiGenericBindingProvider extends AbstractGenericBindi
 		
 		return config;
 	}
-	
-	/**
-	 * Parses a PowerDog LocalAPI out configuration by using the regular expression
-	 * {@link OUT_BINDING_PATTERN}. Where the groups should 
-	 * contain the following content:
-	 * <ul>
-	 * <li>1 - Server ID</li>
-	 * <li>2 - PowerDog Value ID</li>
-	 * <li>3 - Refresh Interval</li>
-	 * </ul>
-	 * 
-	 * @param item 
-	 * @param bindingConfig the config string to parse
-	 * @param config
-	 * 
-	 * @return the filled {@link PowerDogLocalAPIBindingConfig}
-	 * @throws BindingConfigParseException if the regular expression doesn't match
-	 * the given <code>bindingConfig</code>
-	 */
-	/*protected PowerDogLocalApiBindingConfig parseOutBindingConfig(Item item, String bindingConfig, PowerDogLocalApiBindingConfig config) throws BindingConfigParseException {
-
-		logger.debug("PowerDogLocalAPI:parseOutBindingConfig called");
-		PowerDogLocalApiBindingConfigElement configElement;
-
-		// Check if regex for in-binding matches
-		Matcher matcher = OUT_BINDING_PATTERN.matcher(bindingConfig);
-		if (!matcher.matches()) {
-			throw new BindingConfigParseException("bindingConfig '" + bindingConfig + "' doesn't represent a valid out-binding-configuration. A valid configuration is matched by the RegExp '"+OUT_BINDING_PATTERN+"'");
-		}
-		matcher.reset();
-				
-		// parse regex and extract configuration data
-		while (matcher.find()) {
-			configElement = new PowerDogLocalApiBindingConfigElement();
-			configElement.serverId = matcher.group(1);
-			configElement.valueId = matcher.group(2);
-			configElement.refreshInterval = Integer.valueOf(matcher.group(3));
-
-			logger.debug("PowerDogLocalAPI: "+configElement);
-			config.put(OUT_BINDING_KEY, configElement);
-		}
-		
-		return config;
-	}*/
 	
 	/**
 	 * @{inheritDoc}

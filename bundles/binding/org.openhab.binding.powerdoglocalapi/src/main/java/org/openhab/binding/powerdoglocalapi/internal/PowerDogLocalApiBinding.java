@@ -84,7 +84,6 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 
 	public PowerDogLocalApiBinding() {
 	}
-		
 	
 	/**
 	 * Called by the SCR to activate the component with its configuration read from CAS
@@ -171,6 +170,11 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		// cycle over all available powerdogs
 		for (PowerDogLocalApiBindingProvider provider : providers) 
 		{
+			// cycle over all available in-bindings
+			/* TODO: 	check if reading of out-bindings is useful -
+			 			currently it seems to be applicable only for 
+			 			* openhab init (but it works without, so I give it a try) and 
+			 			* in case several clients are writing to the same PowerAPI, which is risky due to concurrency */
 			for (String itemName : provider.getInBindingItemNames()) 
 			{
 				// get item specific refresh interval
@@ -287,6 +291,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		
 		State newState = null;
 
+		// cast Interfaces
 		if(command instanceof OnOffType) 			{ newState = (OnOffType) command; }
 		else if(command instanceof OpenClosedType) 	{ newState = (OpenClosedType) command; }
 		else if(command instanceof PercentType) 	{ newState = (PercentType) command; }
@@ -315,26 +320,26 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 			if(!provider.providesBindingFor(itemName))
 				continue;
 			
-			// in case of an outbinding, this need to be handled
+			// only in case of an outbinding, this need to be handled
 			if(provider.getOutBindingItemNames().contains(itemName))			
 			{
-				// check if item may send update
+				// check if item may send update already now
 				// time indicated in config is the minimum time between two updates
 				Long lastUpdateTimeStamp = lastUpdateMap.get(itemName);
 				if (lastUpdateTimeStamp == null) {
 					lastUpdateTimeStamp = 0L;
 				}
 				long age = System.currentTimeMillis() - lastUpdateTimeStamp;
-				boolean itemNeedsUpdate = (age >= provider.getRefreshInterval(itemName));
+				boolean itemMayUpdate = (age >= provider.getRefreshInterval(itemName));
 		
-				if(itemNeedsUpdate)
+				if(itemMayUpdate)
 				{
 					// Convert new State to PowerDog set Current_Value string
 					String value = "0";
 					if(newState instanceof OnOffType) {
-						if (newState == OnOffType.ON) value = "1"; }
+						if (newState == OnOffType.ON) value = "1"; } // C-like Not-Zero is True, Zero is false; Powerdog does not offer boolean for PowerAPI, so this might not be the best solution, but it is sufficient
 					else if(newState instanceof OpenClosedType) { 
-						if (newState == OpenClosedType.OPEN) value = "1"; }
+						if (newState == OpenClosedType.OPEN) value = "1"; } // see comment above
 					else if(newState instanceof PercentType) { value = newState.toString(); }
 					else if(newState instanceof DecimalType) { value = newState.toString(); }
 					
@@ -345,6 +350,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 					  try {
 							logger.debug("PowerDogLocalApi sending to PowerDog");
 					        
+							// Perform XML RPC call
 							PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
 						    XmlRpcStruct response = powerdog.setLinearSensorDevice(server.password, provider.getValueId(itemName), value);
 						    
@@ -383,6 +389,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	private State createState(Class<? extends Item> itemType,
 			String transformedResponse) {
 		try {
+			// Assign according to output type or cast to output type directly
 			if (itemType.isAssignableFrom(SwitchItem.class)) {
 				int value = Math.round(Float.parseFloat(transformedResponse));
 				if(value > 0)
@@ -535,6 +542,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	
 	/**
 	 * PowerAPI Local Device API 0.b (15.02.2013)
+	 * Tested against PowerDog Firmware V1.84 (High Velocity) 2013-09-19
 	 * 
 	 * VariantMap getPowerDogInfo(String password);
 	 * VariantMap getSensors(String password);
