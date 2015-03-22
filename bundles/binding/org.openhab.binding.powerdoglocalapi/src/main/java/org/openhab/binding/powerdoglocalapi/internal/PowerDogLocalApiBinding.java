@@ -287,20 +287,14 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		
 		State newState = null;
 
-		if(command instanceof OnOffType) {
-			newState = DecimalType.ZERO;
-			if (command == OnOffType.ON) newState = new DecimalType(1); }
-		else if(command instanceof OpenClosedType) { 
-			newState = DecimalType.ZERO;
-			if (command == OpenClosedType.OPEN) newState = new DecimalType(1); }
-		else if(command instanceof PercentType) { newState = new DecimalType(((PercentType) command).intValue()); }
-		else if(command instanceof DecimalType) { newState = (DecimalType) command; }
-
+		if(command instanceof OnOffType) 			{ newState = (OnOffType) command; }
+		else if(command instanceof OpenClosedType) 	{ newState = (OpenClosedType) command; }
+		else if(command instanceof PercentType) 	{ newState = (PercentType) command; }
+		else if(command instanceof DecimalType) 	{ newState = (DecimalType) command; }
 		
 		if(newState != null)
 		{
 			eventPublisher.postUpdate(itemName, newState);
-			lastUpdateMap.put(itemName, System.currentTimeMillis());
 		}
 		else
 		{
@@ -321,8 +315,8 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 			if(!provider.providesBindingFor(itemName))
 				continue;
 			
-			if(provider.getOutBindingItemNames().contains(itemName))
-				
+			// in case of an outbinding, this need to be handled
+			if(provider.getOutBindingItemNames().contains(itemName))			
 			{
 				// check if item may send update
 				// time indicated in config is the minimum time between two updates
@@ -335,6 +329,15 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 		
 				if(itemNeedsUpdate)
 				{
+					// Convert new State to PowerDog set Current_Value string
+					String value = "0";
+					if(newState instanceof OnOffType) {
+						if (newState == OnOffType.ON) value = "1"; }
+					else if(newState instanceof OpenClosedType) { 
+						if (newState == OpenClosedType.OPEN) value = "1"; }
+					else if(newState instanceof PercentType) { value = newState.toString(); }
+					else if(newState instanceof DecimalType) { value = newState.toString(); }
+					
 					// Get the unit serverId from the binding, and relate that to the config
 					String unit = provider.getServerId(itemName);
 					PowerDogLocalApiServerConfig server = serverList.get(unit);
@@ -343,7 +346,7 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 							logger.debug("PowerDogLocalApi sending to PowerDog");
 					        
 							PowerDog powerdog = ( PowerDog ) XmlRpcProxy.createProxy( server.url(), "", new Class[] { PowerDog.class }, false );
-						    XmlRpcStruct response = powerdog.setLinearSensorDevice(server.password, provider.getValueId(itemName), newState.toString());
+						    XmlRpcStruct response = powerdog.setLinearSensorDevice(server.password, provider.getValueId(itemName), value);
 						    
 							lastUpdateMap.put(itemName, System.currentTimeMillis());
 						    
@@ -380,22 +383,22 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 	private State createState(Class<? extends Item> itemType,
 			String transformedResponse) {
 		try {
-			if (itemType.isAssignableFrom(NumberItem.class)) {
-				return DecimalType.valueOf(transformedResponse);}
-			else if (itemType.isAssignableFrom(DimmerItem.class)) {
-				return DecimalType.valueOf(transformedResponse);}
-			else if (itemType.isAssignableFrom(SwitchItem.class)) {
-				int value = Integer.parseInt(transformedResponse);
+			if (itemType.isAssignableFrom(SwitchItem.class)) {
+				int value = Math.round(Float.parseFloat(transformedResponse));
 				if(value > 0)
 					return OnOffType.ON;
 				else
 					return OnOffType.OFF;}
+			else if (itemType.isAssignableFrom(DimmerItem.class)) {
+				return new PercentType(Math.round(Float.parseFloat(transformedResponse)));}
 			else if (itemType.isAssignableFrom(ContactItem.class)) {
-				int value = Integer.parseInt(transformedResponse);
+				int value = Math.round(Float.parseFloat(transformedResponse));
 				if(value > 0)
 					return OpenClosedType.OPEN;
 				else
 					return OpenClosedType.CLOSED;}
+			else if (itemType.isAssignableFrom(NumberItem.class)) {
+				return DecimalType.valueOf(transformedResponse);}
 			else {
 				return StringType.valueOf(transformedResponse);
 			}
