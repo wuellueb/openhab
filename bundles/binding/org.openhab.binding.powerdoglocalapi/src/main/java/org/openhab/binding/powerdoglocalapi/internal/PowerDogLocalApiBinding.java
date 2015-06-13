@@ -245,6 +245,8 @@ public class PowerDogLocalApiBinding extends AbstractActiveBinding<PowerDogLocal
 				    server.lastUpdate = System.currentTimeMillis();
 				    
 			        logger.debug("PowerDog.getAllCurrentLinearValues() result: " + response.toString());
+			        
+			        // TODO insert one time log message after startup to allow for determination of valueIDs from PowerDog response
 			     }
 				 catch (Exception e) 
 				 {

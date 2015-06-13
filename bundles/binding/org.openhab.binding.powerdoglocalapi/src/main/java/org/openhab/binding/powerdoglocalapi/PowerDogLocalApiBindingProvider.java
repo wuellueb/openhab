@@ -15,7 +15,7 @@ import org.openhab.core.items.Item;
 
 /**
  * This interface is implemented by classes that can provide mapping information
- * between openHAB items and the PowerDog Local API.
+ * between openHAB items and the PowerDog Local API (officially called PowerDog PowerAPI Local Device API)
  * 
  * @author wuellueb
  * @since 1.7.0
